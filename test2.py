@@ -1,11 +1,29 @@
+import win32con
+import win32gui
 import ctypes
-import time
-import admin
-from random import choice
+import ctypes.wintypes
 from keys import KEYS
+import time
+
+SendMessage = ctypes.windll.user32.SendMessageW
 
 
-SendInput = ctypes.windll.user32.SendInput
+def get_window(window_name):
+    hwnd = 0
+    if window_name is not None:
+        hwnd = win32gui.FindWindow(None, window_name)
+    if hwnd == 0:
+        def callback(h, extra):
+            if window_name in win32gui.GetWindowText(h):
+                extra.append(h)
+            return True
+        extra = []
+        win32gui.EnumWindows(callback, extra)
+        if extra: hwnd = extra[0]
+    if hwnd == 0:
+        print("Windows Application <%s> not found!" % window_name)
+
+    return hwnd
 
 
 # C struct redefinitions 
@@ -39,77 +57,39 @@ class Input(ctypes.Structure):
     _fields_ = [("type", ctypes.c_ulong),
                 ("ii", Input_I)]
 
-# Actuals Functions
+
+
+class COPYDATASTRUCT(ctypes.Structure):
+    _fields_ = [
+        ('dwData', ctypes.wintypes.LPARAM),
+        ('cbData', ctypes.wintypes.DWORD),
+        ('lpData', ctypes.c_char_p)
+        #formally lpData is c_void_p, but we do it this way for convenience
+]
+
 
 def PressKey(hexKeyCode):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
     ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008, 0, ctypes.pointer(extra) )
     x = Input( ctypes.c_ulong(1), ii_ )
-    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
+    return x
 
 def ReleaseKey(hexKeyCode):
     extra = ctypes.c_ulong(0)
     ii_ = Input_I()
     ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008 | 0x0002, 0, ctypes.pointer(extra) )
     x = Input( ctypes.c_ulong(1), ii_ )
-    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
-
-
-def Press(key,t=1):
-    inp_key = key
-    key = KEYS.get(inp_key,None)
-    if key:
-        PressKey(key)
-        print(f'{inp_key} pressed.')
-        time.sleep(t)
-        ReleaseKey(key)
-        print(f'{inp_key} released.')
-    else:
-        print('Unrecognised key')
-
-
-def delay(secs):
-    for x in range(secs):
-        print(x+1)
-        time.sleep(1)
-
-
-def call_monsters(calls=2):
-    for _ in range(calls):
-        Press(key='1',t=.5)
+    return x
 
 
 
-def random_move(t=2):
-    moves = ['W','A','S','D']
-    ch = KEYS.get(choice(moves))
-    PressKey(ch)
-    time.sleep(t)
-    ReleaseKey(ch)
+hwnd = get_window('Origins2-Global')
 
+print(hwnd)
 
-
-
-if __name__ == '__main__':
-    if not admin.isUserAdmin():
-        admin.runAsAdmin()
-
-    calling_delay = 5
-    delay(5)
-
-    while True:
-        PressKey(KEYS.get('SPACE'))
-        call_monsters(15)
-        time.sleep(calling_delay)
-        ReleaseKey(KEYS.get('SPACE'))
-        Press('Z')
-        random_move(t=4)
-        
-
-        
-
-
-
-
-
+space = KEYS.get('SPACE',None)
+cds = PressKey(space)
+print(cds)
+SendMessage(hwnd, win32con.WM_KEYDOWN, 0, ctypes.byref(cds))
+time.sleep(5)
